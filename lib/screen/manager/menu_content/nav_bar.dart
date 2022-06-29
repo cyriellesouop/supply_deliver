@@ -20,23 +20,43 @@ import '../../../services/user_service.dart';
 class _ManagerHomeState extends State<ManagerHome> { */
 
 class NavBar extends StatefulWidget {
-  String currentManagerID;
-  NavBar({required this.currentManagerID, Key? key}) : super(key: key);
+  // String currentManagerID;
+  NavBar({/* required this.currentManagerID,  */ Key? key}) : super(key: key);
   @override
   _NavBarState createState() => _NavBarState();
 }
 
 class _NavBarState extends State<NavBar> {
   UserService ServiceUser = new UserService();
-   UserModel currentManager = new UserModel(name: '');
+  UserModel currentManager = new UserModel(name: '',idDoc: "audrey");
+  var picture;
+  var currentManagerID;
+  var name;
+  var phone;
+  var idposiition;
+  var adress;
 
   @override
   void initState() {
-    getCuurrentUser();
+   // getCuurrentUser();
+     getUser();
 
     super.initState();
   }
 
+  getUser() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    setState(() {
+      picture = prefs.getString('picture') ?? '';
+      currentManagerID = prefs.getString('id') ?? '';
+      name = prefs.getString('name') ?? '';
+      phone = prefs.getString('phone') ?? '';
+      adress = prefs.getString('adress') ?? '';
+      idposiition = prefs.getString("idPosition")??'';
+    });
+  }
+/* 
   getCuurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
     final id = prefs.getString('id') ?? '';
@@ -48,7 +68,7 @@ class _NavBarState extends State<NavBar> {
         print('currrent user $currentManager');
       });
     });
-  }
+  } */
 
   @override
   Widget build(BuildContext context) {
@@ -62,17 +82,17 @@ class _NavBarState extends State<NavBar> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => UpdateProfil(
-                        currentManagerID: widget.currentManagerID)));
+                        currentManagerID: currentManagerID)));
           },
           child: UserAccountsDrawerHeader(
             accountName: Text(
-              '${currentManager.name.toLowerCase()}',
+              '${this.name}'.toLowerCase(),
               style: GoogleFonts.philosopher(
                   fontSize: 15, fontWeight: FontWeight.bold),
             ),
 
             accountEmail: Text(
-              '${currentManager.phone}',
+              '$phone',
               style: GoogleFonts.poppins(fontSize: 15),
             ),
             currentAccountPicture: Container(
@@ -111,8 +131,8 @@ class _NavBarState extends State<NavBar> {
         ),
         ListTile(
           leading: Icon(Icons.favorite),
-          title: Text('Mes preferences'),
-          onTap: () {},
+          title: Text('Suivi de livraison'),
+         //onTap: () {MyMap(idposiition);},
         ),
         ListTile(
           leading: Icon(Icons.save),
@@ -127,7 +147,7 @@ class _NavBarState extends State<NavBar> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => CommandListe(
-                        currentManagerID: widget.currentManagerID)));
+                        currentManagerID:currentManagerID)));
           },
         ),
         ListTile(

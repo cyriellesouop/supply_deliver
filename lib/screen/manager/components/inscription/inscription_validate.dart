@@ -38,15 +38,31 @@ class _PhoneAuthState extends State<PhoneAuth> {
 //controleur du champs de remplissage du numero de telephone et de l'Ot code
   TextEditingController phoneController = TextEditingController();
   TextEditingController otpCodeController = TextEditingController();
-  bool otpDialog = true;
-//to save iduser insert
-  var idUser;
 
+  bool isTimeExpired = false;
+  //pour afficher la boite de dialogue de saisi de l'otp code
+//qui contient l'id du document cree
+  var idDoc;
+  //qui contient l'id du document existant
+  String doc = "null";
+  late UserModel existUser;
+  bool otpDialog = true;
+  //pour renvoyer le code
+  bool resend = false;
   // gerer l'etat du formulaire
   final _formKey = GlobalKey<FormState>();
   //verifier si l'authentification a reussi
   bool verified = false;
+
+  //si l'otp a ete saisi
   bool isphonenumberNotFill = true;
+  //verifie si l'espace pour le code pin est visible afin de changer la valeur des boutons et les actions derrieres les boutons
+  bool otploginVisible = false;
+  //gerer l'etat du circular progress bar
+  bool isLoading = false;
+  var bouton = "VERIFIER";
+
+  // bool wait = false;
   late UserModel user;
   // creation d'une instance de firebaseauth
   FirebaseAuth auth = FirebaseAuth.instance;
@@ -57,17 +73,32 @@ class _PhoneAuthState extends State<PhoneAuth> {
   Authclass? authClass; // = Authclass(auth.currentUser);
 //liste des positions de tous les livreurs
   List<LatLng> listecoordonnees = [];
+
+  //tableau de tous les utilisateurs de la base de donnees
+
+  List<UserModel> allUsers = [];
+  List<String> allphone = [];
 //token
   String? token;
   // timer utiliser pour le onloading
   Timer? _timer;
 
 // variables contenant les coordonees d'une position
-  double lat=0;
-  double long=0;
-  //verifie si l'espace pour le code pin est visible afin de changer la valeur des boutons et les actions derrieres les boutons
-  bool otploginVisible = false;
-  bool isLoading = false;
+  late double lat;
+  late double long;
+
+  UserModel? exampleModel = new UserModel(
+      name: 'audrey', idDoc: 'audrey'); //,picture: "assets/images/profil.png"
+
+  UserService ServiceUser = new UserService();
+  PositionService ServicePosition = new PositionService();
+  PositionModel x = new PositionModel(idPosition: "", longitude: 0, latitude: 0);
+  LatLng y = new LatLng(0, 0);
+
+  List<LatLng> positions = [];
+
+  List<UserModel> exampleModelDeliver = [];
+
 //fonction pour obtenir les coordonnees la position actuelle
 
 //obtenir la position actuelle
@@ -98,14 +129,8 @@ class _PhoneAuthState extends State<PhoneAuth> {
     Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.low);
     print(position);
-    setState(() {
-      lat = position.latitude;
+    lat = position.latitude;
     long = position.longitude;
-
-      
-    });
-    
-    print("la latitude est $lat et la longitude est $long");
 
     // return await Geolocator.getCurrentPosition();
   }
@@ -118,39 +143,19 @@ class _PhoneAuthState extends State<PhoneAuth> {
     super.dispose();
   }
 
-  UserModel? exampleModel =
-      new UserModel(name: 'audrey'); //,picture: "assets/images/profil.png"
-
-  UserService ServiceUser = new UserService();
-  PositionService ServicePosition = new PositionService();
-  PositionModel x = new PositionModel(longitude: 0, latitude: 0);
-  LatLng y = new LatLng(0, 0);
-
-  List<LatLng> positions = [];
-
-  List<UserModel> exampleModelDeliver = [];
-
-  List<UserModel> allUsers = [];
-  List<String?> allUsersid = [];
-
   //-----------------------------------------------------------------
 
 //la fonction initstate  la listenOtp et la currentlocation et le easyloading lors de rechargement de la page
   @override
   void initState() {
     super.initState();
-    print("la latitude est $lat et la longitude est $long");
-
     authClass = Authclass();
-
     //authClass = Authclass(this.auth.currentUser);
-    // _listDeliver();
-
-    //  _DeliversPosition();
-
+    _listDeliver();
+    //_DeliversPosition();
     getCurrentLocation();
     _listenOtp();
-
+    getAlluser();
     EasyLoading.addStatusCallback((status) {
       print('EasyLoading Status $status');
       if (status == EasyLoadingStatus.dismiss) {
@@ -166,25 +171,63 @@ class _PhoneAuthState extends State<PhoneAuth> {
     await SmsAutoFill().listenForCode();
   }
 
-//tous les id existant dans la bd
-  getAlluserID() async {
+  // getUserPosition(List<UserModel>  users) async {
+
+  _listDeliver() async {
+    await ServiceUser.getDelivers().forEach((element) {
+      setState(() {
+        this.exampleModelDeliver = element;
+      });
+
+      print(
+          "le nombre de livreur est exactement ${exampleModelDeliver.length}");
+    });
+  }
+
+  //tous les id existant dans la bd
+  getAlluser() async {
+    UserModel userr =
+        UserModel(name: 'aaaa', phone: '237676843017', idDoc: 'audrey');
     await ServiceUser.getAlluser().forEach((element) {
       setState(() {
         allUsers = element;
+        print("test is exit ${isExist(allUsers, userr)}");
       });
 
       //  var n = -1;
       //pour chaque livreur, on renvoie sa posion
-      for (var i in allUsers) {
+      /* for (var i in allUsers) {
         //  n++;
         setState(() {
           allUsersid.add(i.idUser);
         });
-      }
+      } */
     });
   }
 
-/* ************************************/
+  List<bool> isExist(List<UserModel?> table, UserModel user) {
+    var isexist = false;
+    var alreadyDeliver = false;
+    for (var i in table) {
+      if (i?.phone == user.phone && i?.isDeliver == true) {
+        setState(() {
+          isexist = true;
+          alreadyDeliver = true;
+          doc = i!.idDoc;
+        });
+
+        break;
+      } else if (i?.phone == user.phone && i?.isDeliver == false) {
+        setState(() {
+          isexist = true;
+          alreadyDeliver = false;
+        });
+        break;
+      }
+    }
+    return [isexist, alreadyDeliver];
+  }
+
   @override
   Widget build(BuildContext context) {
     Size size = MediaQuery.of(context).size;
@@ -243,119 +286,201 @@ class _PhoneAuthState extends State<PhoneAuth> {
                   SizedBox(
                     height: 60,
                   ),
-                  !isLoading
-                      ? FlatButton(
-                          onPressed: () async {
-                            if (otploginVisible == false) {
-                              if (_formKey.currentState!.validate()) {
-                                setState(() {
-                                  isLoading = true;
-                                });
+                  if (!isLoading)
+                    FlatButton(
+                      onPressed: () async {
+                        if (otploginVisible == false) {
+                          if (_formKey.currentState!.validate()) {
+                            setState(() {
+                              isLoading = true;
+                            });
 
-                                otpDialog ? _showValidationDialog(context) : {};
-                              }
-                            } else {
-                              print("le token est : ${this.token}");
+                            otpDialog
+                                ? {
+                                    _showValidationDialog(context),
+                                  }
+                                : {};
+                          }
+                        } else {
+                          print(
+                              "la latitude est : $lat et la longitude est : $long et le formulaire ${widget.nameField}");
 
-                              /**----------------------------------------------------------------------------------*/
-                              PositionModel pos =
-                                  PositionModel(longitude: long, latitude: lat);
-                              var identifiant = await PositionService().addPosition(
-                                  pos); // renvoie l'id de la position actuelle du manager
+                          print(
+                              "le token est : ${auth.currentUser!.getIdToken()}");
 
-                              //stockage local with sharedprefs
-                              SharedPreferences prefs =
-                                  await SharedPreferences.getInstance();
+                          /**----------------------------------------------------------------------------------*/
+                          PositionModel pos =
+                              PositionModel(idPosition: "",  longitude: long, latitude: lat);
+                          var identifiant = await PositionService().addPosition(
+                              pos); // renvoie l'id de la position actuelle du manager
+
+                          //stockage local with sharedprefs
+                          SharedPreferences prefs =
+                              await SharedPreferences.getInstance();
+
+                          UserModel userCreate = UserModel(
+                              //ajouter l'identifiant du nouvel utilisateur , le meme qui s'est cree lors de l'authentification
+                              idDoc: "",
+                              idUser: this.actual_user,
+                              adress: widget.adressField,
+                              name: widget.nameField,
+                              idPosition: identifiant,
+                              phone: "237${phoneController.text}".trim(),
+                              picture: widget.picture,
+                              token: token,
+                              createdAt: DateTime.now().toString());
+
+                          _timer?.cancel();
+                          setState(() {
+                            isLoading = true;
+                          });
+
+                          if (isExist(allUsers, userCreate)[0] == true &&
+                              isExist(allUsers, userCreate)[1] == true) {
+
+
+
+
+ print(
+                                'is exit is exist ${isExist(allUsers, userCreate).toString()}, le doc id est : $doc');
+                            //  var userservice= new UserService();
+
+                            await UserService().getUserbyId(actual_user).then(
+                                  (value) => existUser = value,
+                                );
+
+                            existUser.Adress = widget.adressField;
+                            existUser.Iduser = this.actual_user;
+
+                            existUser.Name = widget.nameField;
+                            existUser.IdPosition = identifiant;
+                            existUser.Phone =
+                                "237${phoneController.text}".trim();
+                            existUser.Picture = widget.picture;
+                            existUser.Token = token;
+
+                            await UserService()
+                                .updateUser(existUser, doc)
+                                .then((value) {
                               prefs.setString('id', this.actual_user);
                               prefs.setString('name', widget.nameField);
                               prefs.setString('adress', widget.adressField);
                               prefs.setString('picture', widget.picture);
-                              prefs.setInt(
-                                  'phone', int.parse(phoneController.text));
+                              prefs.setString('phone',
+                                  ("+237${phoneController.text}".trim()));
                               prefs.setString('idPosition', identifiant);
                               prefs.setBool('isAuthenticated', true);
-
-                              UserModel userCreate = UserModel(
-                                  //ajouter l'identifiant du nouvel utilisateur , le meme qui s'est cree lors de l'authentification
-                                  idUser: this.actual_user,
-                                  adress: widget.adressField,
-                                  name: widget.nameField,
-                                  idPosition: identifiant,
-                                  phone: int.parse(phoneController.text),
-                                  picture: widget.picture,
-                                  createdAt: DateTime.now().toString());
-                              _timer?.cancel();
+                              prefs.setString('idDoc', doc);
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => ManagerHome(
+                                          currentManagerID: actual_user)));
+                            }).catchError((onError) {
+                              EasyLoading.showError('echec de connexion');
                               setState(() {
-                                isLoading = true;
+                                isLoading = false;
                               });
+                            });
 
-                              /*  isExist(allUsersid, actual_user)
-                                  ? await UserService()
-                                      .updateUserdata(userCreate)
-                                      .then((value) {
-                                        setState(() {
-                                          
-                                        });
-                                      (EasyLoading.showSuccess(
-                                              'Mise a jour du compte reussie'))
-                                          .catchError((onError) {
-                                        EasyLoading.showError(
-                                            'echec de connexion');
-                                      });
-                                    })
-                                  : */
-                              await UserService()
-                                  .addUser(userCreate)
-                                  .then((value) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                           
+                          } else if (isExist(allUsers, userCreate)[0] == true &&
+                              isExist(allUsers, userCreate)[1] == false) {
+                                 print(
+                                'is exit is exist ${isExist(allUsers, userCreate).toString()}');
+                            _ShowDialog(context);
+                            setState(() {
+                              isLoading = false;
+                            });
+
+                            _timer?.cancel();
+                            EasyLoading.dismiss();
+                           
+                            // }
+                          } else {
+                            await UserService().addUser(userCreate).then(
+                              (value) {
                                 setState(() {
-                                  idUser = value;
-                                  prefs.setString('idDoc', idUser);
+                                  idDoc = value;
                                 });
+                                prefs.setString('id', this.actual_user);
+                                prefs.setString('name', widget.nameField);
+                                prefs.setString('adress', widget.adressField);
+                                prefs.setString('picture', widget.picture);
+                                prefs.setString('phone',
+                                    "+237${phoneController.text}".trim());
+                                prefs.setString('idPosition', identifiant);
+                                prefs.setBool('isAuthenticated', true);
+                                prefs.setString('idDoc', idDoc);
                                 (EasyLoading.showSuccess(
-                                        'compte cree avec succes'))
-                                    .catchError((onError) {
-                                  EasyLoading.showError('echec de connexion');
-                                });
-                              });
+                                    'compte cree avec succes'));
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) => ManagerHome(
+                                            currentManagerID: actual_user)));
+                              },
+                            ).catchError((onError) {
+                              EasyLoading.showError('echec de connexion');
                               setState(() {
-                                phoneController.text = '';
+                                isLoading = false;
                               });
 
                               _timer?.cancel();
                               EasyLoading.dismiss();
-                              Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                         
-                                          ManagerHome(
-                                              currentManagerID: actual_user)));
-                              _timer?.cancel();
-                              await EasyLoading.dismiss();
-                            }
-                          },
-                          padding: EdgeInsets.all(15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          color: kPrimaryColor,
-                          textColor: kBackgroundColor,
-                          child: Text(
-                            otploginVisible ? "CREER UN COMPTE" : "VERIFIER",
-                            style: GoogleFonts.poppins(fontSize: 15),
-                          ),
-                        )
-                      : Container(
-                          margin: EdgeInsets.symmetric(
-                              horizontal: size.width * 0.37),
-                          height: size.height/4,
-                          width: 10,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 6.0,
-                            backgroundColor: Colors.grey,
-                            valueColor: AlwaysStoppedAnimation(kPrimaryColor),
-                          ),
-                        )
+                            });
+                          }
+                          setState(() {
+                            phoneController.text = '';
+                          });
+                        }
+                      },
+                      padding: EdgeInsets.all(15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      color: kPrimaryColor,
+                      textColor: kBackgroundColor,
+                      child: Text(
+                        otploginVisible ? "CREER UN COMPTE" : "VERIFIER",
+                        style: GoogleFonts.poppins(fontSize: 15),
+                      ),
+                    )
+                  else
+                    Container(
+                      margin:
+                          EdgeInsets.symmetric(horizontal: size.width * 0.37),
+                      height: size.width * 0.12,
+                      width: size.width * 0.1,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 6.0,
+                        backgroundColor: Colors.grey,
+                        valueColor: AlwaysStoppedAnimation(kPrimaryColor),
+                      ),
+                    )
                 ],
               ),
             ),
@@ -363,19 +488,74 @@ class _PhoneAuthState extends State<PhoneAuth> {
     );
   }
 
-  bool isExist(List<String?> table, String user) {
-    var isexist = false;
-    for (int i = 0; i < table.length; i++) {
-      if (user == table[i]) {
-        isexist = true;
-        break;
+  /*  void startTimer() {
+    const onsec = Duration(seconds: 1);
+    Timer _timer = Timer.periodic(onsec, (timer) {
+      if (start == 0) {
+        setState(() {
+          timer.cancel();
+          //   wait = false;
+        });
+      } else {
+        setState(() {
+          start--;
+        });
       }
+    });
+  } */
+
+/* 
+//verifier si le tmps de verification de code a expirer
+  verificationCompleted(params) async {
+    print("time time is ok");
+    if (isTimeExpired) {
+      await auth.signOut();
+       print("time time is expired");
+      //your code
+      Fluttertoast.showToast(
+          msg: "temps expire",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          timeInSecForIosWeb: 5,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+          fontSize: 16.0);
     }
-    return isexist;
+  } */
+
+  // ignore: non_constant_identifier_names
+  void _ShowDialog(BuildContext context) {
+    showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+              backgroundColor: Colors.white,
+              content: Container(
+                  child: Text(
+                      "Un compte entreprise a deja ete cree sur ce numero ?")),
+              actions: [
+                FlatButton(
+                  child: Text("OK".toUpperCase(),
+                      style:
+                          TextStyle(color: Color.fromARGB(255, 240, 229, 240))),
+                  padding: EdgeInsets.all(2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  color: Palette.primarySwatch.shade400,
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+              ]);
+        });
   }
 
 // fonction d'affichage de la boite de dialogue
   void _showValidationDialog(BuildContext context) async {
+    /* setState(() {
+      start = 30;
+    }); */
     print("+237${phoneController.text}");
     await auth.verifyPhoneNumber(
         phoneNumber: "+237${phoneController.text}".trim(),
@@ -393,6 +573,7 @@ class _PhoneAuthState extends State<PhoneAuth> {
                 textColor: Colors.white,
                 fontSize: 16.0);
           }
+
           setState(() {
             isLoading = false;
           });
@@ -412,7 +593,11 @@ class _PhoneAuthState extends State<PhoneAuth> {
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       )),
-                  content: PinFieldAutoFill(
+                  content: /* Container(
+                    height: 100,
+                    child: Column(
+                      children: [ */
+                      PinFieldAutoFill(
                     controller: otpCodeController,
                     keyboardType: TextInputType.number,
                     codeLength: 6,
@@ -420,6 +605,32 @@ class _PhoneAuthState extends State<PhoneAuth> {
                       print(val);
                     },
                   ),
+                  /*  SizedBox(
+                          height: 5,
+                        ),
+                        RichText(
+                            text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: "Renvoie d'un nouveau code dans ",
+                              style: TextStyle(
+                                  fontSize: 16, color: Colors.yellowAccent),
+                            ),
+                            TextSpan(
+                              text: "00:$start",
+                              style: TextStyle(
+                                  fontSize: 16, color: Colors.pinkAccent),
+                            ),
+                            TextSpan(
+                              text: " sec ",
+                              style: TextStyle(
+                                  fontSize: 16, color: Colors.yellowAccent),
+                            ),
+                          ],
+                      /*   )), */
+                      ],
+                    ),
+                  ), */
                   actions: <Widget>[
                     FlatButton(
                         child: Text("valider",
@@ -431,6 +642,7 @@ class _PhoneAuthState extends State<PhoneAuth> {
                         ),
                         color: Palette.primarySwatch.shade400,
                         onPressed: () async {
+                          //  Navigator.pop(context);
                           print(
                               '--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------formulaire valide');
                           await authClass!
@@ -466,6 +678,8 @@ class _PhoneAuthState extends State<PhoneAuth> {
                             Navigator.pop(context);
                           });
                           if (verified == true) {
+                            //  otploginVisible = verified;
+
                             print("le token token tonken est : $token ");
                             isLoading = false;
                             _timer?.cancel();
@@ -485,13 +699,17 @@ class _PhoneAuthState extends State<PhoneAuth> {
           print("code envoye");
           print(signcode);
         },
-        codeAutoRetrievalTimeout: (String verificationID) {});
-  }
-
-  void setData(String verificationId) {
-    setState(() {
-      verificationIDreceived = verificationId;
-    });
+        codeAutoRetrievalTimeout: (String verificationID) {
+          /*  setState(() {
+            isLoading = false;
+          }); */
+          // Navigator.pop(context);
+          //   Navigator.pop(context);
+          /* setState(() {
+            verificationIDreceived = verificationID;
+           // isTimeExpired = true;
+          }); */
+        });
   }
 }
 
